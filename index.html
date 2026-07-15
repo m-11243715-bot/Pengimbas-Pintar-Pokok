@@ -84,9 +84,7 @@
                 "Buah Kelapa: Minyak Kelapa Murni, Bahan Baja Cair Organik.",
                 "Sabut Kelapa: Cocopeat - Menggantikan tanah gambut sebagai media tanam.",
                 "Tempurung Kelapa: Briket Bahan Bakar - Lebih bersih dari kayu kerana tidak mempunyai asap yang banyak.",
-
-> Asyraf:
-"Batang, Daun dan Akar: Akar - Bahan ubat tradisional dan pengikut semula jadi di tebing sungai."
+                "Batang, Daun dan Akar: Akar - Bahan ubat tradisional dan pengikut semula jadi di tebing sungai."
               ] },
 
             { kunci: ["kertas", "bougainvillea", "spectabilis"], nama: "Pokok Bunga Kertas", saintifik: "Bougainvillea spectabilis",
@@ -134,10 +132,7 @@
             { kunci: ["kasturi", "microcarpa"], nama: "Limau Kasturi", saintifik: "Citrus x microcarpa",
               keterangan: "Campuran tanah yang sesuai: tanah kebun + sedikit pasir + kompos.",
               inovasi: [
-                "Makanan dan Minuman: Teh dan minuman herba - campur daun kering limau kasturi dengan daun teh, sifat antiseptik & melegakan tekak.
-
-> Asyraf:
-Gula-gula lembut dan jeli tinggi vitamin C.",
+                "Makanan dan Minuman: Teh dan minuman herba - campur daun kering limau kasturi dengan daun teh, sifat antiseptik & melegakan tekak. Gula-gula lembut dan jeli tinggi vitamin C.",
                 "Kesihatan & Suplemen (perlu rujukan pakar kesihatan): Kapsul/tablet ekstrak bantu kawal kolesterol dan tekanan darah. Ubat kumur semula jadi. Minyak pati untuk aromaterapi.",
                 "Pertanian dan Alam Sekitar: Bioinsektisida dan racun kulat semula jadi. Baja organik dari sisa perahan, kulit dan biji."
               ] },
@@ -185,9 +180,7 @@ Gula-gula lembut dan jeli tinggi vitamin C.",
               ] },
 
             { kunci: ["darah tanduk", "elliptica"], nama: "Pokok Darah Tanduk", saintifik: "Ochrosia elliptica",
-
-> Asyraf:
-keterangan: "Tumbuh baik di tanah berpasir, tanah liat berpasir atau tanah berhumus, asalkan mempunyai saliran air yang sangat baik. Tahan di kawasan pesisir pantai dan tanah yang agak berkapur.",
+              keterangan: "Tumbuh baik di tanah berpasir, tanah liat berpasir atau tanah berhumus, asalkan mempunyai saliran air yang sangat baik. Tahan di kawasan pesisir pantai dan tanah yang agak berkapur.",
               inovasi: [
                 "Teknologi kawalan hakisan pantai: sangat tahan lasak, rintang air masin, dan kebal angin laut - digunakan sebagai tanaman benteng semula jadi untuk menstabilkan pasir pantai dan menghalang hakisan pesisiran."
               ] },
@@ -268,13 +261,10 @@ keterangan: "Tumbuh baik di tanah berpasir, tanah liat berpasir atau tanah berhu
                     keteranganPokok.textContent = "-";
                     kegunaanPokok.textContent = "-";
                 }
-                tahapPadanan.textContent = ${keyakinan}%;
+                tahapPadanan.textContent = `${keyakinan}%`;
                 maklumatKotak.style.display = "block";
             } else {
-                statusTeks.textContent = ❌ Tak dapat kenal pasti (Keyakinan tertinggi: ${keyakinan}%).
-
-> Asyraf:
-Cuba lagi dengan sudut/cahaya berbeza.;
+                statusTeks.textContent = `❌ Tak dapat kenal pasti (Keyakinan tertinggi: ${keyakinan}%). Cuba lagi dengan sudut/cahaya berbeza.`;
             }
             butangImbas.disabled = false;
         }
@@ -284,3 +274,4 @@ Cuba lagi dengan sudut/cahaya berbeza.;
     </script>
 </body>
 </html>
+
