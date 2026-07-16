@@ -1,229 +1,506 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PhytoVision AI</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5dc;
-        }
-        video, canvas {
-            width: 100%;
-            border-radius: 8px;
-            background: #000;
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            font-size: 18px;
-            margin: 15px 0;
-            background: #2e8b57;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        button:disabled { background: #999; cursor: not-allowed; }
-        .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
-        .info-box { display: none; padding: 15px; background: white; border-radius: 8px; margin-top: 15px; }
-        h2, h3 { margin: 5px 0; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local Plant Identifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#2e8b57;
+    --green-dark:#1f6e44;
+    --green-light:#e7f5ec;
+    --amber:#d99a1f;
+    --amber-light:#fbf1dd;
+    --red:#d1533c;
+    --text:#243329;
+    --muted:#6f7d74;
+    --bg:#f3f7f4;
+    --card:#ffffff;
+    --radius:18px;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    padding:26px 16px 50px;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(46,139,87,0.07), transparent 45%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{max-width:480px; margin:0 auto;}
+
+  .eyebrow{
+    text-align:center;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--green-dark);
+    margin-bottom:6px;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:26px;
+    margin:0 0 6px;
+    text-align:center;
+    color:var(--text);
+  }
+  .tagline{
+    text-align:center;
+    font-size:14px;
+    color:var(--muted);
+    margin:0 0 22px;
+    line-height:1.5;
+  }
+
+  .viewfinder{
+    position:relative;
+    border-radius:var(--radius);
+    overflow:hidden;
+    background:#000;
+    box-shadow:0 14px 30px -12px rgba(31,110,68,0.35);
+    aspect-ratio:4/3;
+  }
+  .viewfinder video{
+    width:100%; height:100%;
+    object-fit:cover;
+    display:block;
+    opacity:0.94;
+  }
+  .corner{
+    position:absolute;
+    width:22px; height:22px;
+    border:2.5px solid rgba(255,255,255,0.85);
+    pointer-events:none;
+  }
+  .corner.tl{top:10px; left:10px; border-right:none; border-bottom:none; border-radius:8px 0 0 0;}
+  .corner.tr{top:10px; right:10px; border-left:none; border-bottom:none; border-radius:0 8px 0 0;}
+  .corner.bl{bottom:10px; left:10px; border-right:none; border-top:none; border-radius:0 0 0 8px;}
+  .corner.br{bottom:10px; right:10px; border-left:none; border-top:none; border-radius:0 0 8px 0;}
+
+  .scan-line{
+    position:absolute;
+    left:8%; right:8%;
+    height:2px;
+    background:linear-gradient(90deg, transparent, var(--green), transparent);
+    top:10%;
+    opacity:0;
+  }
+  .viewfinder.scanning .scan-line{
+    opacity:1;
+    animation:sweep 1.5s ease-in-out infinite;
+  }
+  @keyframes sweep{
+    0%{ top:12%; }
+    50%{ top:85%; }
+    100%{ top:12%; }
+  }
+
+  canvas{display:none;}
+
+  .status-row{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    margin:16px 0 16px;
+    font-size:13.5px;
+    font-weight:500;
+    color:var(--muted);
+  }
+  .status-dot{
+    width:8px; height:8px;
+    border-radius:50%;
+    background:var(--amber);
+    flex-shrink:0;
+    transition:background 0.2s ease;
+  }
+  .status-row[data-state="ready"] .status-dot{ background:var(--green); }
+  .status-row[data-state="busy"] .status-dot{
+    background:var(--amber);
+    animation:pulse 1s ease-in-out infinite;
+  }
+  .status-row[data-state="error"] .status-dot{ background:var(--red); }
+  @keyframes pulse{
+    0%,100%{ opacity:1; transform:scale(1); }
+    50%{ opacity:0.4; transform:scale(1.4); }
+  }
+
+  button{
+    width:100%;
+    padding:15px;
+    font-family:'Inter', sans-serif;
+    font-size:15.5px;
+    font-weight:600;
+    background:var(--green);
+    color:#fff;
+    border:none;
+    border-radius:13px;
+    cursor:pointer;
+    box-shadow:0 8px 18px -8px rgba(46,139,87,0.55);
+    transition:background 0.15s ease, transform 0.08s ease;
+  }
+  button:hover:not(:disabled){ background:var(--green-dark); }
+  button:active:not(:disabled){ transform:scale(0.99); }
+  button:disabled{ background:#b7c2ba; box-shadow:none; cursor:not-allowed; }
+  button:focus-visible{ outline:2px solid var(--green-dark); outline-offset:2px; }
+
+  .specimen{
+    display:none;
+    margin-top:22px;
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:24px;
+    box-shadow:0 12px 28px -10px rgba(36,51,41,0.14);
+    border:1px solid rgba(46,139,87,0.08);
+  }
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    font-size:12px;
+    font-weight:600;
+    padding:5px 12px;
+    border-radius:999px;
+    background:var(--green-light);
+    color:var(--green-dark);
+    margin-bottom:14px;
+  }
+  .badge.tier-medium{ background:var(--amber-light); color:#8a6a12; }
+  .badge svg{width:12px; height:12px;}
+
+  .specimen h2{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:22px;
+    margin:0 0 2px;
+  }
+  .specimen .scientific{
+    font-style:italic;
+    font-size:13.5px;
+    color:var(--muted);
+    margin:0 0 18px;
+  }
+
+  .field{ padding:13px 0; border-top:1px solid #eef2ef; }
+  .field-label{
+    font-size:11.5px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--green-dark);
+    margin:0 0 6px;
+  }
+  .field p{ margin:0; font-size:14px; line-height:1.6; color:var(--text); }
+
+  .uses-list{ margin:0; padding:0; list-style:none; }
+  .uses-list li{
+    position:relative;
+    padding-left:18px;
+    font-size:14px;
+    line-height:1.6;
+    color:var(--text);
+    margin-bottom:7px;
+  }
+  .uses-list li:last-child{ margin-bottom:0; }
+  .uses-list li::before{
+    content:"";
+    position:absolute;
+    left:2px; top:8px;
+    width:6px; height:6px;
+    border-radius:2px;
+    background:var(--green);
+    transform:rotate(45deg);
+  }
+
+  .confidence-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:8px;
+  }
+  .confidence-value{
+    font-weight:700;
+    font-size:14.5px;
+    color:var(--green-dark);
+  }
+  .meter{
+    height:8px;
+    border-radius:6px;
+    background:#eef2ef;
+    overflow:hidden;
+  }
+  .meter-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg, var(--green-dark), var(--green));
+    border-radius:6px;
+    transition:width 0.55s cubic-bezier(.4,0,.2,1);
+  }
+  .meter.tier-medium .meter-fill{ background:linear-gradient(90deg, #8a6a12, var(--amber)); }
+
+  @media (prefers-reduced-motion: reduce){
+    .scan-line, .status-dot{ animation:none !important; }
+    .meter-fill{ transition:none !important; }
+  }
+</style>
 </head>
 <body>
-    <h1 style="text-align:center">🔍 PhytoVision AI</h1>
+<div class="wrap">
 
+  <div class="eyebrow">Plant Scanner</div>
+  <h1>🔍 Local Plant Identifier</h1>
+  <p class="tagline">Point your camera at a leaf, flower, or fruit to identify it.</p>
+
+  <div class="viewfinder" id="viewfinder">
     <video id="cameraFeed" autoplay playsinline muted></video>
-    <canvas id="captureCanvas" style="display:none"></canvas>
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div class="scan-line"></div>
+  </div>
+  <canvas id="captureCanvas"></canvas>
 
-    <div class="status" id="statusText">Starting camera...</div>
-    <button id="scanButton" disabled>📷 Scan Plant</button>
+  <div class="status-row" id="statusPill" data-state="loading">
+    <span class="status-dot"></span>
+    <span id="statusText">Starting camera...</span>
+  </div>
 
-    <div class="info-box" id="infoBox">
-        <h2 id="plantName"></h2>
-        <p style="color:#666;font-style:italic" id="scientificName"></p>
-        <p><strong>Soil Suitability:</strong> <span id="plantDescription"></span></p>
-        <p><strong>Innovation & Uses:</strong> <span id="plantUses"></span></p>
-        <p><strong>Confidence Level:</strong> <span id="matchConfidence"></span></p>
+  <button id="scanButton" disabled>📷 Scan Plant</button>
+
+  <div class="specimen" id="infoBox">
+    <div class="badge" id="specimenBadge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l6 6L20 6"/></svg>
+      <span id="badgeText">Identified</span>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-    <script>
-        const video = document.getElementById('cameraFeed');
-        const canvas = document.getElementById('captureCanvas');
-        const context = canvas.getContext('2d');
-        const statusText = document.getElementById('statusText');
-        const scanButton = document.getElementById('scanButton');
-        const infoBox = document.getElementById('infoBox');
-        const plantName = document.getElementById('plantName');
-        const scientificName = document.getElementById('scientificName');
-        const plantDescription = document.getElementById('plantDescription');
-        const plantUses = document.getElementById('plantUses');
-        const matchConfidence = document.getElementById('matchConfidence');
+    <h2 id="plantName"></h2>
+    <p class="scientific" id="scientificName"></p>
 
-        // Your Teachable Machine model link
-        const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ffG6J3JxR/";
+    <div class="field">
+      <p class="field-label">Soil Suitability</p>
+      <p id="plantDescription"></p>
+    </div>
 
-        let model;
+    <div class="field">
+      <p class="field-label">Innovation &amp; Uses</p>
+      <ul class="uses-list" id="plantUses"></ul>
+    </div>
 
-        // Full information for each plant (not used to train the model - display only).
-        // "keywords" = keywords used to match against the class label returned by the Teachable Machine model.
-        let plantList = [
-            { keywords: ["lembing", "bipinnatifidum"], name: "Spearleaf Philodendron", scientific: "Thaumatophyllum Bipinnatifidum",
-              description: "Requires loose, organic-rich soil with very good drainage.",
-              innovation: ["Eco-friendly packaging material.", "Liquid organic fertilizer.", "Natural food coloring."] },
+    <div class="field">
+      <div class="confidence-row">
+        <p class="field-label" style="margin:0;">Confidence Level</p>
+        <span class="confidence-value" id="matchConfidence">0%</span>
+      </div>
+      <div class="meter" id="confidenceMeter"><div class="meter-fill" id="confidenceFill"></div></div>
+    </div>
+  </div>
 
-            { keywords: ["kelapa", "nucifera"], name: "Coconut Tree", scientific: "Cocos nucifera",
-              description: "Known as the tree of a thousand uses, thrives in coastal areas.",
-              innovation: ["Fruit: Virgin coconut oil, organic liquid fertilizer.", "Husk: Cocopeat - peat soil substitute.", "Shell: Clean-burning fuel briquettes.", "Roots: Traditional medicine and riverbank binder."] },
+</div>
 
-            { keywords: ["kertas", "bougainvillea", "spectabilis"], name: "Bougainvillea", scientific: "Bougainvillea spectabilis",
-              description: "Can survive in less fertile soil.",
-              innovation: ["Pollutant filter and noise barrier, suitable for roadside planting.", "Leaves and petals used as natural dye; roots and bark used in traditional medicine."] },
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+<script>
+  const video = document.getElementById('cameraFeed');
+  const viewfinder = document.getElementById('viewfinder');
+  const canvas = document.getElementById('captureCanvas');
+  const context = canvas.getContext('2d');
+  const statusPill = document.getElementById('statusPill');
+  const statusText = document.getElementById('statusText');
+  const scanButton = document.getElementById('scanButton');
+  const infoBox = document.getElementById('infoBox');
+  const specimenBadge = document.getElementById('specimenBadge');
+  const badgeText = document.getElementById('badgeText');
+  const plantName = document.getElementById('plantName');
+  const scientificName = document.getElementById('scientificName');
+  const plantDescription = document.getElementById('plantDescription');
+  const plantUses = document.getElementById('plantUses');
+  const matchConfidence = document.getElementById('matchConfidence');
+  const confidenceFill = document.getElementById('confidenceFill');
+  const confidenceMeter = document.getElementById('confidenceMeter');
 
-            { keywords: ["telang", "ternatea"], name: "Butterfly Pea Flower", scientific: "Clitoria ternatea",
-              description: "Can grow in various soil types but avoid soil that is constantly waterlogged.",
-              innovation: ["Natural dye for rice, cakes, drinks, or soap.", "Crafts: cake decoration, salads, or handmade craft paper."] },
+  // Your Teachable Machine model link
+  const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ffG6J3JxR/";
 
-            { keywords: ["lidah buaya", "aloe"], name: "Aloe Vera", scientific: "Aloe Vera",
-              description: "Very intolerant of waterlogged or compacted soil.",
-              innovation: ["Gel: moisturizing lotion, mild burn treatment, health drinks, facial cleanser.", "Natural fertilizer and growth stimulant from boiled leaf water."] },
+  let model;
 
-            { keywords: ["ciku", "zapota"], name: "Sapodilla Tree", scientific: "Manilkara zapota",
-              description: "Can grow in loamy or sandy soil, but avoid soil that is constantly waterlogged as roots can easily rot.",
-              innovation: ["Fruit made into jam, puree, cake, or juice.", "Stem latex is a key ingredient in chewing gum; hard, water-resistant wood used for furniture."] },
+  function setStatus(text, state){
+    statusText.textContent = text;
+    statusPill.setAttribute('data-state', state);
+  }
 
-            { keywords: ["jambu batu", "guajava"], name: "Guava", scientific: "Psidium guajava",
-              description: "Adapts well to various soil types, avoid soil that is constantly waterlogged.",
-              innovation: ["Nutritious snacks: chips, dried slices, low-sugar sweets.", "Antioxidant extract for face cream and lotion.", "Waste turned into organic fertilizer; leaves inhibit fungi and bacteria."] },
+  // Full information for each plant (not used to train the model - display only).
+  // "keywords" = keywords used to match against the class label returned by the Teachable Machine model.
+  let plantList = [
+    { keywords: ["lembing", "bipinnatifidum"], name: "Spearleaf Philodendron", scientific: "Thaumatophyllum Bipinnatifidum",
+      description: "Requires loose, organic-rich soil with very good drainage.",
+      innovation: ["Eco-friendly packaging material.", "Liquid organic fertilizer.", "Natural food coloring."] },
 
-            { keywords: ["nangka", "heterophyllus"], name: "Jackfruit Tree", scientific: "Artocarpus heterophyllus",
-              description: "Suitable for alluvial or sandy clay soil, avoid soil that is constantly waterlogged.",
-              innovation: ["Young fruit used as a vegetable, eaten fresh, jam and chips.", "Bark/stem decoction for mild blood sugar control (expert consultation needed)."] },
+    { keywords: ["kelapa", "nucifera"], name: "Coconut Tree", scientific: "Cocos nucifera",
+      description: "Known as the tree of a thousand uses, thrives in coastal areas.",
+      innovation: ["Fruit: Virgin coconut oil, organic liquid fertilizer.", "Husk: Cocopeat - peat soil substitute.", "Shell: Clean-burning fuel briquettes.", "Roots: Traditional medicine and riverbank binder."] },
 
-            { keywords: ["kasturi", "microcarpa"], name: "Calamansi Lime", scientific: "Citrus x microcarpa",
-              description: "Suitable soil mix: garden soil + a little sand + compost.",
-              innovation: ["Herbal tea and drinks, high vitamin C candy.", "Extract capsules to help control cholesterol and blood pressure.", "Natural bioinsecticide and organic fertilizer."] },
+    { keywords: ["kertas", "bougainvillea", "spectabilis"], name: "Bougainvillea", scientific: "Bougainvillea spectabilis",
+      description: "Can survive in less fertile soil.",
+      innovation: ["Pollutant filter and noise barrier, suitable for roadside planting.", "Leaves and petals used as natural dye; roots and bark used in traditional medicine."] },
 
-            { keywords: ["berbaru", "bebaru", "tiliaceus"], name: "Variegated Sea Hibiscus", scientific: "Hibiscus tiliaceus Variegata",
-              description: "Grows well in various soil types, as long as drainage is good.",
-              innovation: ["Stem fiber: rope, netting, paper, salt-water resistant fabric.", "Flowers used as natural dye; leaves used for traditional food wrapping."] },
+    { keywords: ["telang", "ternatea"], name: "Butterfly Pea Flower", scientific: "Clitoria ternatea",
+      description: "Can grow in various soil types but avoid soil that is constantly waterlogged.",
+      innovation: ["Natural dye for rice, cakes, drinks, or soap.", "Crafts: cake decoration, salads, or handmade craft paper."] },
 
-            { keywords: ["andong", "fruticosa"], name: "Red Cordyline", scientific: "Cordyline fruticosa",
-              description: "Suitable for loose, organic-rich soil with good drainage.",
-              innovation: ["Root and leaf decoction for fever and headache relief (expert consultation needed).", "Brightly colored leaves used for ceremonial flower decorations and traditional customs."] },
+    { keywords: ["lidah buaya", "aloe"], name: "Aloe Vera", scientific: "Aloe Vera",
+      description: "Very intolerant of waterlogged or compacted soil.",
+      innovation: ["Gel: moisturizing lotion, mild burn treatment, health drinks, facial cleanser.", "Natural fertilizer and growth stimulant from boiled leaf water."] },
 
-            { keywords: ["bunga raya", "rosa-sinensis", "rosasinensis"], name: "Hibiscus", scientific: "Hibiscus rosa-sinensis",
-              description: "Thrives in loose, organic-rich soil with good drainage.",
-              innovation: ["Flower decoction for cough relief and cooling the body.", "Leaf paste for bruises or boils (health expert consultation needed)."] },
+    { keywords: ["ciku", "zapota"], name: "Sapodilla Tree", scientific: "Manilkara zapota",
+      description: "Can grow in loamy or sandy soil, but avoid soil that is constantly waterlogged as roots can easily rot.",
+      innovation: ["Fruit made into jam, puree, cake, or juice.", "Stem latex is a key ingredient in chewing gum; hard, water-resistant wood used for furniture."] },
 
-            { keywords: ["kubis", "oleracea"], name: "Cauliflower", scientific: "Brassica oleracea",
-              description: "Grows best in loose, deep, organic-rich soil with excellent drainage.",
-              innovation: ["Damaged outer leaves used as green fertilizer or animal feed.", "Long storage: wrap roots with damp soil, hang in a shaded area."] },
+    { keywords: ["jambu batu", "guajava"], name: "Guava", scientific: "Psidium guajava",
+      description: "Adapts well to various soil types, avoid soil that is constantly waterlogged.",
+      innovation: ["Nutritious snacks: chips, dried slices, low-sugar sweets.", "Antioxidant extract for face cream and lotion.", "Waste turned into organic fertilizer; leaves inhibit fungi and bacteria."] },
 
-            { keywords: ["tanjung", "soka", "coccinea"], name: "Ixora / Jungle Flame", scientific: "Ixora coccinea",
-              description: "Thrives in loose, organic-rich soil with smooth drainage.",
-              innovation: ["Essential oil extract for perfume, soap, anti-aging serum.", "Antibacterial formulation for oral care products.", "Floral motifs used in clothing patterns and architecture."] },
+    { keywords: ["nangka", "heterophyllus"], name: "Jackfruit Tree", scientific: "Artocarpus heterophyllus",
+      description: "Suitable for alluvial or sandy clay soil, avoid soil that is constantly waterlogged.",
+      innovation: ["Young fruit used as a vegetable, eaten fresh, jam and chips.", "Bark/stem decoction for mild blood sugar control (expert consultation needed)."] },
 
-            { keywords: ["daun emas", "speciosa"], name: "Gold Leaf Shrub", scientific: "Sanchezia speciosa",
-              description: "Thrives in loose, organic-rich, moist soil with very good drainage.",
-              innovation: ["Low hedging for semi-shaded areas.", "Flowers attract butterflies and bees, helping pollinate other garden plants."] },
+    { keywords: ["kasturi", "microcarpa"], name: "Calamansi Lime", scientific: "Citrus x microcarpa",
+      description: "Suitable soil mix: garden soil + a little sand + compost.",
+      innovation: ["Herbal tea and drinks, high vitamin C candy.", "Extract capsules to help control cholesterol and blood pressure.", "Natural bioinsecticide and organic fertilizer."] },
 
-            { keywords: ["darah tanduk", "elliptica"], name: "Ochrosia", scientific: "Ochrosia elliptica",
-              description: "Grows well in sandy soil, sandy clay, or humus soil with very good drainage.",
-              innovation: ["Natural windbreak plant to stabilize beach sand and prevent coastal erosion."] },
+    { keywords: ["berbaru", "bebaru", "tiliaceus"], name: "Variegated Sea Hibiscus", scientific: "Hibiscus tiliaceus Variegata",
+      description: "Grows well in various soil types, as long as drainage is good.",
+      innovation: ["Stem fiber: rope, netting, paper, salt-water resistant fabric.", "Flowers used as natural dye; leaves used for traditional food wrapping."] },
 
-            { keywords: ["cemara laut", "equisetifolia"], name: "Australian Pine (Sea Cypress)", scientific: "Casuarina equisetifolia",
-              description: "Further information not yet available.",
-              innovation: ["Further information not yet available."] }
-        ];
+    { keywords: ["andong", "fruticosa"], name: "Red Cordyline", scientific: "Cordyline fruticosa",
+      description: "Suitable for loose, organic-rich soil with good drainage.",
+      innovation: ["Root and leaf decoction for fever and headache relief (expert consultation needed).", "Brightly colored leaves used for ceremonial flower decorations and traditional customs."] },
 
-        function matchPlant(modelLabel) {
-            const lowerLabel = modelLabel.toLowerCase();
-            for (const plant of plantList) {
-                if (plant.keywords.some(k => lowerLabel.includes(k))) {
-                    return plant;
-                }
-            }
-            return null;
-        }
+    { keywords: ["bunga raya", "rosa-sinensis", "rosasinensis"], name: "Hibiscus", scientific: "Hibiscus rosa-sinensis",
+      description: "Thrives in loose, organic-rich soil with good drainage.",
+      innovation: ["Flower decoction for cough relief and cooling the body.", "Leaf paste for bruises or boils (health expert consultation needed)."] },
 
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
-                    audio: false
-                });
-                video.srcObject = stream;
-                await video.play();
-                statusText.textContent = "✅ Camera ready. Loading Teachable Machine model...";
-                await loadModel();
-            } catch (err) {
-                console.error(err);
-                statusText.textContent = "❌ Failed to open camera. Please allow camera access in your browser.";
-            }
-        }
+    { keywords: ["kubis", "oleracea"], name: "Cauliflower", scientific: "Brassica oleracea",
+      description: "Grows best in loose, deep, organic-rich soil with excellent drainage.",
+      innovation: ["Damaged outer leaves used as green fertilizer or animal feed.", "Long storage: wrap roots with damp soil, hang in a shaded area."] },
 
-        async function loadModel() {
-            try {
-                const modelURL = MODEL_URL + "model.json";
-                const metadataURL = MODEL_URL + "metadata.json";
-                model = await tmImage.load(modelURL, metadataURL);
-                statusText.textContent = "✅ System ready! Press Scan to begin.";
-                scanButton.disabled = false;
-            } catch (err) {
-                console.error(err);
-                statusText.textContent = "❌ Failed to load model. Check your internet connection.";
-            }
-        }
+    { keywords: ["tanjung", "soka", "coccinea"], name: "Ixora / Jungle Flame", scientific: "Ixora coccinea",
+      description: "Thrives in loose, organic-rich soil with smooth drainage.",
+      innovation: ["Essential oil extract for perfume, soap, anti-aging serum.", "Antibacterial formulation for oral care products.", "Floral motifs used in clothing patterns and architecture."] },
 
-        async function startRecognition() {
-            if (!model) return;
+    { keywords: ["daun emas", "speciosa"], name: "Gold Leaf Shrub", scientific: "Sanchezia speciosa",
+      description: "Thrives in loose, organic-rich, moist soil with very good drainage.",
+      innovation: ["Low hedging for semi-shaded areas.", "Flowers attract butterflies and bees, helping pollinate other garden plants."] },
 
-            statusText.textContent = "🔍 Analyzing...";
-            infoBox.style.display = "none";
-            scanButton.disabled = true;
+    { keywords: ["darah tanduk", "elliptica"], name: "Ochrosia", scientific: "Ochrosia elliptica",
+      description: "Grows well in sandy soil, sandy clay, or humus soil with very good drainage.",
+      innovation: ["Natural windbreak plant to stabilize beach sand and prevent coastal erosion."] },
 
-            canvas.width = video.videoWidth || 640;
-            canvas.height = video.videoHeight || 480;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    { keywords: ["cemara laut", "equisetifolia"], name: "Australian Pine (Sea Cypress)", scientific: "Casuarina equisetifolia",
+      description: "Further information not yet available.",
+      innovation: ["Further information not yet available."] }
+  ];
 
-            const predictions = await model.predict(canvas);
-            // Find the class with the highest probability
-            predictions.sort((a, b) => b.probability - a.probability);
-            const best = predictions[0];
-            const confidence = Math.round(best.probability * 100);
+  function matchPlant(modelLabel){
+    const lowerLabel = modelLabel.toLowerCase();
+    for (const plant of plantList){
+      if (plant.keywords.some(k => lowerLabel.includes(k))) return plant;
+    }
+    return null;
+  }
 
-            if (confidence >= 40) {
-                const plant = matchPlant(best.className);
-                statusText.textContent = "✅ Identified";
-                if (plant) {
-                    plantName.textContent = plant.name;
-                    scientificName.textContent = plant.scientific;
-                    plantDescription.textContent = plant.description;
-                    plantUses.textContent = plant.innovation.join(" | ");
-                } else {
-                    // No match found in the list - display the model's label directly
-                    plantName.textContent = best.className;
-                    scientificName.textContent = "";
-                    plantDescription.textContent = "-";
-                    plantUses.textContent = "-";
-                }
-                matchConfidence.textContent = `${confidence}%`;
-                infoBox.style.display = "block";
-            } else {
-                statusText.textContent = `❌ Unable to identify (Highest confidence: ${confidence}%). Try again with a different angle/lighting.`;
-            }
-            scanButton.disabled = false;
-        }
+  async function startCamera(){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      setStatus("Camera ready. Loading Teachable Machine model...", "loading");
+      await loadModel();
+    } catch (err){
+      console.error(err);
+      setStatus("Failed to open camera. Please allow camera access in your browser.", "error");
+    }
+  }
 
-        scanButton.addEventListener('click', startRecognition);
-        window.addEventListener('load', startCamera);
-    </script>
+  async function loadModel(){
+    try{
+      const modelURL = MODEL_URL + "model.json";
+      const metadataURL = MODEL_URL + "metadata.json";
+      model = await tmImage.load(modelURL, metadataURL);
+      setStatus("System ready! Press Scan to begin.", "ready");
+      scanButton.disabled = false;
+    } catch (err){
+      console.error(err);
+      setStatus("Failed to load model. Check your internet connection.", "error");
+    }
+  }
+
+  async function startRecognition(){
+    if (!model) return;
+
+    setStatus("Analyzing...", "busy");
+    infoBox.style.display = "none";
+    scanButton.disabled = true;
+    viewfinder.classList.add("scanning");
+
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const predictions = await model.predict(canvas);
+    predictions.sort((a, b) => b.probability - a.probability);
+    const best = predictions[0];
+    const confidence = Math.round(best.probability * 100);
+
+    viewfinder.classList.remove("scanning");
+
+    if (confidence >= 40){
+      const plant = matchPlant(best.className);
+      setStatus("Identified", "ready");
+
+      if (plant){
+        plantName.textContent = plant.name;
+        scientificName.textContent = plant.scientific;
+        plantDescription.textContent = plant.description;
+        plantUses.innerHTML = plant.innovation.map(item => `<li>${item}</li>`).join("");
+      } else {
+        plantName.textContent = best.className;
+        scientificName.textContent = "";
+        plantDescription.textContent = "-";
+        plantUses.innerHTML = "<li>-</li>";
+      }
+
+      matchConfidence.textContent = `${confidence}%`;
+      confidenceFill.style.width = `${confidence}%`;
+
+      const isHighConfidence = confidence >= 70;
+      badgeText.textContent = isHighConfidence ? "Identified" : "Likely Match";
+      specimenBadge.classList.toggle("tier-medium", !isHighConfidence);
+      confidenceMeter.classList.toggle("tier-medium", !isHighConfidence);
+
+      infoBox.style.display = "block";
+    } else {
+      setStatus(`Unable to identify (highest confidence: ${confidence}%). Try again with a different angle or lighting.`, "error");
+    }
+    scanButton.disabled = false;
+  }
+
+  scanButton.addEventListener('click', startRecognition);
+  window.addEventListener('load', startCamera);
+</script>
 </body>
 </html>
