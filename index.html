@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ms">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PhytoVision AI</title>
+    <title>Local Plant Identifier</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -35,243 +35,195 @@
     </style>
 </head>
 <body>
-    <h1 style="text-align:center">🔍 PhytoVision AI</h1>
+    <h1 style="text-align:center">🔍 Local Plant Identifier</h1>
 
-    <video id="kamera" autoplay playsinline muted></video>
-    <canvas id="kanvas" style="display:none"></canvas>
+    <video id="cameraFeed" autoplay playsinline muted></video>
+    <canvas id="captureCanvas" style="display:none"></canvas>
 
-    <div class="status" id="statusTeks">Memulakan kamera...</div>
-    <button id="butangImbas" disabled>📷 Imbas Pokok</button>
+    <div class="status" id="statusText">Starting camera...</div>
+    <button id="scanButton" disabled>📷 Scan Plant</button>
 
-    <div class="info-box" id="maklumatKotak">
-        <h2 id="namaPokok"></h2>
-        <p style="color:#666;font-style:italic" id="namaSaintifik"></p>
-        <p><strong>Kesesuaian Tanah:</strong> <span id="keteranganPokok"></span></p>
-        <p><strong>Inovasi & Kegunaan:</strong> <span id="kegunaanPokok"></span></p>
-        <p><strong>Tahap Keyakinan:</strong> <span id="tahapPadanan"></span></p>
+    <div class="info-box" id="infoBox">
+        <h2 id="plantName"></h2>
+        <p style="color:#666;font-style:italic" id="scientificName"></p>
+        <p><strong>Soil Suitability:</strong> <span id="plantDescription"></span></p>
+        <p><strong>Innovation & Uses:</strong> <span id="plantUses"></span></p>
+        <p><strong>Confidence Level:</strong> <span id="matchConfidence"></span></p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     <script>
-        const video = document.getElementById('kamera');
-        const kanvas = document.getElementById('kanvas');
-        const konteks = kanvas.getContext('2d');
-        const statusTeks = document.getElementById('statusTeks');
-        const butangImbas = document.getElementById('butangImbas');
-        const maklumatKotak = document.getElementById('maklumatKotak');
-        const namaPokok = document.getElementById('namaPokok');
-        const namaSaintifik = document.getElementById('namaSaintifik');
-        const keteranganPokok = document.getElementById('keteranganPokok');
-        const kegunaanPokok = document.getElementById('kegunaanPokok');
-        const tahapPadanan = document.getElementById('tahapPadanan');
+        const video = document.getElementById('cameraFeed');
+        const canvas = document.getElementById('captureCanvas');
+        const context = canvas.getContext('2d');
+        const statusText = document.getElementById('statusText');
+        const scanButton = document.getElementById('scanButton');
+        const infoBox = document.getElementById('infoBox');
+        const plantName = document.getElementById('plantName');
+        const scientificName = document.getElementById('scientificName');
+        const plantDescription = document.getElementById('plantDescription');
+        const plantUses = document.getElementById('plantUses');
+        const matchConfidence = document.getElementById('matchConfidence');
 
-        // Link model Teachable Machine kau
-        const URL_MODEL = "https://teachablemachine.withgoogle.com/models/ffG6J3JxR/";
+        // Your Teachable Machine model link
+        const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ffG6J3JxR/";
 
         let model;
 
-        // Maklumat lengkap setiap pokok (bukan untuk latih model - hanya untuk paparan).
-        // "kunci" = kata kunci untuk padankan dengan label class yang keluar dari model Teachable Machine.
-        let senaraiPokok = [
-            { kunci: ["lembing", "bipinnatifidum"], nama: "Pokok Daun Lembing", saintifik: "Thaumatophyllum Bipinnatifidum",
-              keterangan: "Memerlukan tanah yang gembur, kaya dengan bahan organik, dan mempunyai saliran air sangat baik.",
-              inovasi: ["Bahan Pembungkusan Mesra Alam.", "Baja Organik Cecair.", "Pewarna Makanan Semula Jadi."] },
+        // Full information for each plant (not used to train the model - display only).
+        // "keywords" = keywords used to match against the class label returned by the Teachable Machine model.
+        let plantList = [
+            { keywords: ["lembing", "bipinnatifidum"], name: "Spearleaf Philodendron", scientific: "Thaumatophyllum Bipinnatifidum",
+              description: "Requires loose, organic-rich soil with very good drainage.",
+              innovation: ["Eco-friendly packaging material.", "Liquid organic fertilizer.", "Natural food coloring."] },
 
-            { kunci: ["kelapa", "nucifera"], nama: "Pokok Kelapa", saintifik: "Cocos nucifera",
-              keterangan: "Dikenali sebagai pokok seribu guna, tumbuh subur di kawasan pantai.",
-              inovasi: [
-                "Buah Kelapa: Minyak Kelapa Murni, Bahan Baja Cair Organik.",
-                "Sabut Kelapa: Cocopeat - Menggantikan tanah gambut sebagai media tanam.",
-                "Tempurung Kelapa: Briket Bahan Bakar - Lebih bersih dari kayu kerana tidak mempunyai asap yang banyak.",
-                "Batang, Daun dan Akar: Akar - Bahan ubat tradisional dan pengikut semula jadi di tebing sungai."
-              ] },
+            { keywords: ["kelapa", "nucifera"], name: "Coconut Tree", scientific: "Cocos nucifera",
+              description: "Known as the tree of a thousand uses, thrives in coastal areas.",
+              innovation: ["Fruit: Virgin coconut oil, organic liquid fertilizer.", "Husk: Cocopeat - peat soil substitute.", "Shell: Clean-burning fuel briquettes.", "Roots: Traditional medicine and riverbank binder."] },
 
-            { kunci: ["kertas", "bougainvillea", "spectabilis"], nama: "Pokok Bunga Kertas", saintifik: "Bougainvillea spectabilis",
-              keterangan: "Boleh bertahan di tanah yang kurang subur.",
-              inovasi: [
-                "Penapis pencemar dan penghalang bunyi: Tahan gas ekzos dan asap, juga sesuai ditanam di tepi jalan raya.",
-                "Bahan semula jadi utama: Daun dan kelopak bunga boleh dijadikan pewarna semula jadi untuk kain atau makanan. Akar dan batang kulit mengandungi sebatian yang digunakan dalam perubatan tradisional."
-              ] },
+            { keywords: ["kertas", "bougainvillea", "spectabilis"], name: "Bougainvillea", scientific: "Bougainvillea spectabilis",
+              description: "Can survive in less fertile soil.",
+              innovation: ["Pollutant filter and noise barrier, suitable for roadside planting.", "Leaves and petals used as natural dye; roots and bark used in traditional medicine."] },
 
-            { kunci: ["telang", "ternatea"], nama: "Bunga Telang", saintifik: "Clitoria ternatea",
-              keterangan: "Boleh tumbuh di pelbagai jenis tanah tetapi elakkan tanah yang sentiasa berair atau berlopak.",
-              inovasi: [
-                "Pewarna semula jadi: Boleh jadikan pewarna nasi, kuih, minuman, atau sabun semula jadi kerana tiada bahan kimia dan selamat digunakan.",
-                "Kraf: Bunga segar boleh dijadikan hiasan kek, salad, atau bahan kertas kraf tangan yang unik."
-              ] },
+            { keywords: ["telang", "ternatea"], name: "Butterfly Pea Flower", scientific: "Clitoria ternatea",
+              description: "Can grow in various soil types but avoid soil that is constantly waterlogged.",
+              innovation: ["Natural dye for rice, cakes, drinks, or soap.", "Crafts: cake decoration, salads, or handmade craft paper."] },
 
-            { kunci: ["lidah buaya", "aloe"], nama: "Lidah Buaya", saintifik: "Aloe Vera",
-              keterangan: "Sangat tidak tahan tanah yang berair atau padat.",
-              inovasi: [
-                "Gel yang bersih boleh dijadikan losyen pelembap dan rawatan luka bakar ringan, minuman kesihatan, pencuci muka semula jadi, bahan tambah sabun, syampu atau topeng muka.",
-                "Baja dan perangsang tumbuh semula jadi: air rebusan daun segar jadi baja daun penggalak tumbuh; rendam benih dalam larutan gel cair 10 minit sebelum tanam untuk bercambah lebih cepat dan tahan penyakit."
-              ] },
+            { keywords: ["lidah buaya", "aloe"], name: "Aloe Vera", scientific: "Aloe Vera",
+              description: "Very intolerant of waterlogged or compacted soil.",
+              innovation: ["Gel: moisturizing lotion, mild burn treatment, health drinks, facial cleanser.", "Natural fertilizer and growth stimulant from boiled leaf water."] },
 
-            { kunci: ["ciku", "zapota"], nama: "Pokok Ciku", saintifik: "Manilkara zapota",
-              keterangan: "Boleh tumbuh di tanah berlempung atau berpasir, tetapi elakkan tanah yang sentiasa berair kerana akar mudah rosak.",
-              inovasi: [
-                "Serbaguna: Buah boleh jadi jem, puri, kek, atau jus dan getah batang asal bahan utama gusi kunyah serta kayu keras tahan air digunakan untuk perabot."
-              ] },
+            { keywords: ["ciku", "zapota"], name: "Sapodilla Tree", scientific: "Manilkara zapota",
+              description: "Can grow in loamy or sandy soil, but avoid soil that is constantly waterlogged as roots can easily rot.",
+              innovation: ["Fruit made into jam, puree, cake, or juice.", "Stem latex is a key ingredient in chewing gum; hard, water-resistant wood used for furniture."] },
 
-            { kunci: ["jambu batu", "guajava"], nama: "Jambu Batu", saintifik: "Psidium guajava",
-              keterangan: "Boleh menyesuaikan diri dengan pelbagai jenis tanah seperti tanah berlempung atau berpasir, tetapi elakkan tanah yang sentiasa berair.",
-              inovasi: [
-                "Bidang Makanan dan Minuman: Snek berkhasiat seperti keropok jambu, kepingan kering rangup, atau jambu manisan rendah gula.",
-                "Bidang Kosmetik dan Penjagaan Diri: Ekstrak antioksidan digunakan dalam krim muka, losyen badan, atau serum.",
-                "Bidang Pertanian dan Alam Sekitar: Sisa pemprosesan buah, daun dan dahan dikompos menjadi baja organik; sebatian daun jambu menghalang pertumbuhan kulat dan bakteria."
-              ] },
+            { keywords: ["jambu batu", "guajava"], name: "Guava", scientific: "Psidium guajava",
+              description: "Adapts well to various soil types, avoid soil that is constantly waterlogged.",
+              innovation: ["Nutritious snacks: chips, dried slices, low-sugar sweets.", "Antioxidant extract for face cream and lotion.", "Waste turned into organic fertilizer; leaves inhibit fungi and bacteria."] },
 
-            { kunci: ["nangka", "heterophyllus"], nama: "Pokok Buah Nangka", saintifik: "Artocarpus heterophyllus",
-              keterangan: "Sesuai di tanah aluvium atau tanah liat berpasir dan elakkan tanah yang sentiasa berair atau berlopak.",
-              inovasi: [
-                "Serbaguna: Buah muda menjadi sayur, boleh dimakan dengan segar, boleh dijadikan jem dan kerepek. Biji buah boleh direbus atau digoreng.",
-                "Produk kesihatan: Rebusan kulit atau batang kulit digunakan untuk kawal gula darah ringan (perlu rujukan daripada doktor atau pakar kesihatan)."
-              ] },
+            { keywords: ["nangka", "heterophyllus"], name: "Jackfruit Tree", scientific: "Artocarpus heterophyllus",
+              description: "Suitable for alluvial or sandy clay soil, avoid soil that is constantly waterlogged.",
+              innovation: ["Young fruit used as a vegetable, eaten fresh, jam and chips.", "Bark/stem decoction for mild blood sugar control (expert consultation needed)."] },
 
-            { kunci: ["kasturi", "microcarpa"], nama: "Limau Kasturi", saintifik: "Citrus x microcarpa",
-              keterangan: "Campuran tanah yang sesuai: tanah kebun + sedikit pasir + kompos.",
-              inovasi: [
-                "Makanan dan Minuman: Teh dan minuman herba - campur daun kering limau kasturi dengan daun teh, sifat antiseptik & melegakan tekak. Gula-gula lembut dan jeli tinggi vitamin C.",
-                "Kesihatan & Suplemen (perlu rujukan pakar kesihatan): Kapsul/tablet ekstrak bantu kawal kolesterol dan tekanan darah. Ubat kumur semula jadi. Minyak pati untuk aromaterapi.",
-                "Pertanian dan Alam Sekitar: Bioinsektisida dan racun kulat semula jadi. Baja organik dari sisa perahan, kulit dan biji."
-              ] },
+            { keywords: ["kasturi", "microcarpa"], name: "Calamansi Lime", scientific: "Citrus x microcarpa",
+              description: "Suitable soil mix: garden soil + a little sand + compost.",
+              innovation: ["Herbal tea and drinks, high vitamin C candy.", "Extract capsules to help control cholesterol and blood pressure.", "Natural bioinsecticide and organic fertilizer."] },
 
-            { kunci: ["berbaru", "bebaru", "tiliaceus"], nama: "Berbaru Bulu", saintifik: "Hibiscus tiliaceus Variegata",
-              keterangan: "Tumbuh baik di pelbagai jenis tanah seperti tanah berpasir, tanah aluvium, atau tanah liat berpasir, asalkan mempunyai saliran air yang baik.",
-              inovasi: [
-                "Serat batang: Buat tali, jaring, kertas atau kain kasar yang tahan air garam.",
-                "Bunga dan daun: Bunga boleh jadi pewarna semula jadi dan daun boleh digunakan sebagai pembalut makanan tradisional."
-              ] },
+            { keywords: ["berbaru", "bebaru", "tiliaceus"], name: "Variegated Sea Hibiscus", scientific: "Hibiscus tiliaceus Variegata",
+              description: "Grows well in various soil types, as long as drainage is good.",
+              innovation: ["Stem fiber: rope, netting, paper, salt-water resistant fabric.", "Flowers used as natural dye; leaves used for traditional food wrapping."] },
 
-            { kunci: ["andong", "fruticosa"], nama: "Andong Merah", saintifik: "Cordyline fruticosa",
-              keterangan: "Sesuai di tanah gembur, kaya bahan organik, dan mempunyai saliran air yang baik.",
-              inovasi: [
-                "Bidang Kesihatan: Rebusan akar dan daun untuk kelegaan demam, sakit kepala dan masalah perut ringan (perlu rujukan doktor atau pakar).",
-                "Bidang Kesenian: Daun berwarna terang digunakan dalam hiasan bunga manggar, perkahwinan, upacara adat dan hiasan altar."
-              ] },
+            { keywords: ["andong", "fruticosa"], name: "Red Cordyline", scientific: "Cordyline fruticosa",
+              description: "Suitable for loose, organic-rich soil with good drainage.",
+              innovation: ["Root and leaf decoction for fever and headache relief (expert consultation needed).", "Brightly colored leaves used for ceremonial flower decorations and traditional customs."] },
 
-            { kunci: ["bunga raya", "rosa-sinensis", "rosasinensis"], nama: "Bunga Raya", saintifik: "Hibiscus rosa-sinensis",
-              keterangan: "Tumbuh subur di tanah gembur, kaya dengan bahan organik, dan saliran air yang baik. Boleh juga menyesuaikan diri di tanah berlempung atau berpasir, asalkan tidak berair bertakung.",
-              inovasi: [
-                "Ubat tradisional: Rebusan bunga untuk legakan batuk, sejukkan badan; pes daun untuk lebam atau bisul (perlu rujukan pakar kesihatan atau doktor)."
-              ] },
+            { keywords: ["bunga raya", "rosa-sinensis", "rosasinensis"], name: "Hibiscus", scientific: "Hibiscus rosa-sinensis",
+              description: "Thrives in loose, organic-rich soil with good drainage.",
+              innovation: ["Flower decoction for cough relief and cooling the body.", "Leaf paste for bruises or boils (health expert consultation needed)."] },
 
-            { kunci: ["kubis", "oleracea"], nama: "Kubis Bunga", saintifik: "Brassica oleracea var. botrytis",
-              keterangan: "Tumbuh paling baik di tanah gembur, dalam, kaya bahan organik, dan mempunyai saliran air yang sangat baik. Elakkan tanah yang terlalu ringan atau sentiasa berair.",
-              inovasi: [
-                "Produk sampingan: Daun luar yang rosak boleh dijadikan baja hijau atau makanan ternakan.",
-                "Simpan lama: Selepas tuai, balut akar dengan tanah lembap, gantung di tempat teduh - kekal segar 2-3 minggu."
-              ] },
+            { keywords: ["kubis", "oleracea"], name: "Cauliflower", scientific: "Brassica oleracea",
+              description: "Grows best in loose, deep, organic-rich soil with excellent drainage.",
+              innovation: ["Damaged outer leaves used as green fertilizer or animal feed.", "Long storage: wrap roots with damp soil, hang in a shaded area."] },
 
-            { kunci: ["tanjung", "soka", "coccinea"], nama: "Bunga Tanjung / Bunga Soka", saintifik: "Ixora coccinea",
-              keterangan: "Tumbuh subur di tanah gembur, kaya bahan organik, dan saliran air yang lancar. Sesuai juga di tanah berlempung berpasir; elakkan tanah yang terlalu padat atau air bertakung.",
-              inovasi: [
-                "Kosmetik dan wangian: Ekstrak minyak pati untuk minyak wangi, sabun, dan serum antipenuaan.",
-                "Kesihatan moden: Formulasi antibakteria daripada bunga dan kulit kayu untuk produk penjagaan mulut dan antiseptik.",
-                "Reka bentuk: Motif tradisional bunga tanjung didigitalisasikan untuk corak pakaian fesyen dan seni bina kontemporari."
-              ] },
+            { keywords: ["tanjung", "soka", "coccinea"], name: "Ixora / Jungle Flame", scientific: "Ixora coccinea",
+              description: "Thrives in loose, organic-rich soil with smooth drainage.",
+              innovation: ["Essential oil extract for perfume, soap, anti-aging serum.", "Antibacterial formulation for oral care products.", "Floral motifs used in clothing patterns and architecture."] },
 
-            { kunci: ["daun emas", "speciosa"], nama: "Daun Emas", saintifik: "Sanchezia speciosa",
-              keterangan: "Tumbuh subur di tanah gembur, kaya bahan organik, lembap tetapi mempunyai saliran air yang sangat baik. Elakkan tanah yang kering atau bertakung air.",
-              inovasi: [
-                "Pagar rendah untuk kawasan separa teduh - salah satu tanaman berwarna terbaik untuk kawasan kurang cahaya.",
-                "Penarik serangga berguna: bunga menarik rama-rama dan lebah, membantu pendebungaan taman lain."
-              ] },
+            { keywords: ["daun emas", "speciosa"], name: "Gold Leaf Shrub", scientific: "Sanchezia speciosa",
+              description: "Thrives in loose, organic-rich, moist soil with very good drainage.",
+              innovation: ["Low hedging for semi-shaded areas.", "Flowers attract butterflies and bees, helping pollinate other garden plants."] },
 
-            { kunci: ["darah tanduk", "elliptica"], nama: "Pokok Darah Tanduk", saintifik: "Ochrosia elliptica",
-              keterangan: "Tumbuh baik di tanah berpasir, tanah liat berpasir atau tanah berhumus, asalkan mempunyai saliran air yang sangat baik. Tahan di kawasan pesisir pantai dan tanah yang agak berkapur.",
-              inovasi: [
-                "Teknologi kawalan hakisan pantai: sangat tahan lasak, rintang air masin, dan kebal angin laut - digunakan sebagai tanaman benteng semula jadi untuk menstabilkan pasir pantai dan menghalang hakisan pesisiran."
-              ] },
+            { keywords: ["darah tanduk", "elliptica"], name: "Ochrosia", scientific: "Ochrosia elliptica",
+              description: "Grows well in sandy soil, sandy clay, or humus soil with very good drainage.",
+              innovation: ["Natural windbreak plant to stabilize beach sand and prevent coastal erosion."] },
 
-            { kunci: ["cemara laut", "equisetifolia"], nama: "Pokok Cemara Laut", saintifik: "Casuarina equisetifolia",
-              keterangan: "Maklumat lanjut belum disediakan.",
-              inovasi: ["Maklumat lanjut belum disediakan."] }
+            { keywords: ["cemara laut", "equisetifolia"], name: "Australian Pine (Sea Cypress)", scientific: "Casuarina equisetifolia",
+              description: "Further information not yet available.",
+              innovation: ["Further information not yet available."] }
         ];
 
-        function padankanPokok(labelModel) {
-            const labelKecil = labelModel.toLowerCase();
-            for (const pokok of senaraiPokok) {
-                if (pokok.kunci.some(k => labelKecil.includes(k))) {
-                    return pokok;
+        function matchPlant(modelLabel) {
+            const lowerLabel = modelLabel.toLowerCase();
+            for (const plant of plantList) {
+                if (plant.keywords.some(k => lowerLabel.includes(k))) {
+                    return plant;
                 }
             }
             return null;
         }
 
-        async function mulakanKamera() {
+        async function startCamera() {
             try {
-                const strim = await navigator.mediaDevices.getUserMedia({
+                const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } },
                     audio: false
                 });
-                video.srcObject = strim;
+                video.srcObject = stream;
                 await video.play();
-                statusTeks.textContent = "✅ Kamera sedia. Memuatkan model Teachable Machine...";
-                await muatkanModel();
+                statusText.textContent = "✅ Camera ready. Loading Teachable Machine model...";
+                await loadModel();
             } catch (err) {
                 console.error(err);
-                statusTeks.textContent = "❌ Gagal buka kamera. Sila benarkan akses kamera dalam pelayar.";
+                statusText.textContent = "❌ Failed to open camera. Please allow camera access in your browser.";
             }
         }
 
-        async function muatkanModel() {
+        async function loadModel() {
             try {
-                const modelURL = URL_MODEL + "model.json";
-                const metadataURL = URL_MODEL + "metadata.json";
+                const modelURL = MODEL_URL + "model.json";
+                const metadataURL = MODEL_URL + "metadata.json";
                 model = await tmImage.load(modelURL, metadataURL);
-                statusTeks.textContent = "✅ Sistem sedia! Tekan Imbas untuk mula.";
-                butangImbas.disabled = false;
+                statusText.textContent = "✅ System ready! Press Scan to begin.";
+                scanButton.disabled = false;
             } catch (err) {
                 console.error(err);
-                statusTeks.textContent = "❌ Gagal muatkan model. Semak sambungan internet.";
+                statusText.textContent = "❌ Failed to load model. Check your internet connection.";
             }
         }
 
-        async function mulakanPengecaman() {
+        async function startRecognition() {
             if (!model) return;
 
-            statusTeks.textContent = "🔍 Sedang menganalisis...";
-            maklumatKotak.style.display = "none";
-            butangImbas.disabled = true;
+            statusText.textContent = "🔍 Analyzing...";
+            infoBox.style.display = "none";
+            scanButton.disabled = true;
 
-            kanvas.width = video.videoWidth || 640;
-            kanvas.height = video.videoHeight || 480;
-            konteks.drawImage(video, 0, 0, kanvas.width, kanvas.height);
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            const ramalan = await model.predict(kanvas);
-            // Cari kelas dengan kebarangkalian tertinggi
-            ramalan.sort((a, b) => b.probability - a.probability);
-            const terbaik = ramalan[0];
-            const keyakinan = Math.round(terbaik.probability * 100);
+            const predictions = await model.predict(canvas);
+            // Find the class with the highest probability
+            predictions.sort((a, b) => b.probability - a.probability);
+            const best = predictions[0];
+            const confidence = Math.round(best.probability * 100);
 
-            if (keyakinan >= 40) {
-                const pokok = padankanPokok(terbaik.className);
-                statusTeks.textContent = "✅ Dikenal pasti";
-                if (pokok) {
-                    namaPokok.textContent = pokok.nama;
-                    namaSaintifik.textContent = pokok.saintifik;
-                    keteranganPokok.textContent = pokok.keterangan;
-                    kegunaanPokok.textContent = pokok.inovasi.join(" | ");
+            if (confidence >= 40) {
+                const plant = matchPlant(best.className);
+                statusText.textContent = "✅ Identified";
+                if (plant) {
+                    plantName.textContent = plant.name;
+                    scientificName.textContent = plant.scientific;
+                    plantDescription.textContent = plant.description;
+                    plantUses.textContent = plant.innovation.join(" | ");
                 } else {
-                    // Tiada padanan dalam senarai - papar terus label dari model
-                    namaPokok.textContent = terbaik.className;
-                    namaSaintifik.textContent = "";
-                    keteranganPokok.textContent = "-";
-                    kegunaanPokok.textContent = "-";
+                    // No match found in the list - display the model's label directly
+                    plantName.textContent = best.className;
+                    scientificName.textContent = "";
+                    plantDescription.textContent = "-";
+                    plantUses.textContent = "-";
                 }
-                tahapPadanan.textContent = `${keyakinan}%`;
-                maklumatKotak.style.display = "block";
+                matchConfidence.textContent = `${confidence}%`;
+                infoBox.style.display = "block";
             } else {
-                statusTeks.textContent = `❌ Tak dapat kenal pasti (Keyakinan tertinggi: ${keyakinan}%). Cuba lagi dengan sudut/cahaya berbeza.`;
+                statusText.textContent = `❌ Unable to identify (Highest confidence: ${confidence}%). Try again with a different angle/lighting.`;
             }
-            butangImbas.disabled = false;
+            scanButton.disabled = false;
         }
 
-        butangImbas.addEventListener('click', mulakanPengecaman);
-        window.addEventListener('load', mulakanKamera);
+        scanButton.addEventListener('click', startRecognition);
+        window.addEventListener('load', startCamera);
     </script>
 </body>
 </html>
-
